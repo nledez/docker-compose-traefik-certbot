@@ -1,0 +1,64 @@
+version: "3.3"
+
+volumes:
+  letsencrypt_etc:
+    external: true
+  letsencrypt_var:
+    external: true
+  letsencrypt_certificates:
+    external: true
+
+services:
+
+  traefik:
+    image: "traefik:v2.4"
+    container_name: "traefik"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.directory=/certificates/traefik"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - letsencrypt_certificates:/certificates:ro
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  whoami:
+    image: "traefik/whoami"
+    container_name: "simple-service"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`%DOMAIN%`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.routers.whoami-s.rule=Host(`%DOMAIN%`)"
+      - "traefik.http.routers.whoami-s.entrypoints=websecure"
+      - "traefik.http.routers.whoami-s.tls=true"
+
+  certbot-www:
+    image: "docker.io/library/nginx:1.20.0"
+    container_name: "certbot-www"
+    volumes:
+      - letsencrypt_var:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.certbot-www.priority=1000"
+      - "traefik.http.routers.certbot-www.entrypoints=web"
+      - "traefik.http.routers.certbot-www.rule=Host(`%DOMAIN%`) && PathPrefix(`/.well-known/acme-challenge`)"
+      - "traefik.http.routers.certbot-www-https.priority=1000"
+      - "traefik.http.routers.certbot-www-https.entrypoints=websecure"
+      - "traefik.http.routers.certbot-www-https.rule=Host(`%DOMAIN%`) && PathPrefix(`/.well-known/acme-challenge`)"
+      - "traefik.http.routers.certbot-www-https.tls=true"
+
+  certbot:
+    image: "certbot/certbot:v1.15.0"
+    container_name: "certbot"
+    entrypoint: ["/bin/iostat", "60"]
+    volumes:
+      - letsencrypt_etc:/etc/letsencrypt:rw
+      - letsencrypt_var:/var/www:rw
+      - letsencrypt_certificates:/certificates:rw

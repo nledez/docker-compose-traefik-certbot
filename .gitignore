@@ -1,0 +1,9 @@
+openrc.sh
+terraform.tfvars
+.terraform.lock.hcl
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+.ssh_config
+.ssh_known_hosts
+.terraform.tfstate.lock.info
